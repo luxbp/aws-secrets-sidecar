@@ -1,0 +1,65 @@
+# Drop-in sidecar for any Compose stack.
+#
+# The sidecar fetches JSON from Secrets Manager and writes one file per
+# variable at /run/secrets/<NAME>, the same path Compose secrets use.
+# It exits. The app reads those files. It does not need a custom entrypoint
+# when it follows the Docker *_FILE convention (MYSQL_PASSWORD_FILE, and so on).
+#
+# Compose's own secrets: attribute cannot do this fetch. It bind-mounts a file
+# that already exists on the host at the moment the container is created.
+#
+# Required:
+#   AWS_SECRET_ID   Secrets Manager name or ARN. Comma-separate more than one.
+#                   Each SecretString is a JSON object of environment variables.
+#                   Later secrets override earlier keys.
+#   APP_IMAGE       Application image.
+#
+# Optional:
+#   AWS_REGION            Default us-east-1.
+#   SECRETS_FILE_UID/GID  Owner of the secret files. Match the app user (node is 1000).
+#   HOST_PORT / APP_PORT  Published on loopback. Drop the 127.0.0.1 bind when
+#                         another host must reach the container.
+#
+# The instance or task role needs secretsmanager:GetSecretValue, plus
+# kms:Decrypt when the secret uses a customer-managed key. With IMDSv2, set
+# the metadata hop limit to 2 so the container can assume that role.
+#
+# Apps that only read environment variables, not *_FILE, still need
+# embed/entrypoint.sh. Mount the volume read-only and set:
+#   entrypoint: ["docker-entrypoint.sh"]
+#   SECRETS_ENV_FILE: /run/secrets/app.env
+#   SECRETS_PRESERVE: PORT,MODE
+
+name: app-with-secrets
+
+services:
+  secrets:
+    image: ${SIDECAR_IMAGE:-ghcr.io/luxbp/aws-secrets-sidecar:2.40.1}
+    user: "0:0"
+    restart: on-failure
+    environment:
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_SECRET_ID: ${AWS_SECRET_ID:?Set AWS_SECRET_ID to the Secrets Manager secret name or ARN}
+      SECRETS_DIR: /run/secrets
+      SECRETS_ENV_FILE: /run/secrets/app.env
+      SECRETS_FILE_UID: ${SECRETS_FILE_UID:-1000}
+      SECRETS_FILE_GID: ${SECRETS_FILE_GID:-1000}
+    volumes:
+      - app-secrets:/run/secrets
+
+  app:
+    image: ${APP_IMAGE:-example/app:1.0.0}
+    restart: unless-stopped
+    depends_on:
+      secrets:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${HOST_PORT:-8080}:${APP_PORT:-8080}"
+    volumes:
+      - app-secrets:/run/secrets:ro
+    environment:
+      # One *_FILE variable per key. The image's own entrypoint stays in place.
+      API_AUTH_KEY_FILE: /run/secrets/API_AUTH_KEY
+
+volumes:
+  app-secrets:

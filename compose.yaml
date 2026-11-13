@@ -1,0 +1,25 @@
+# Build and run the sidecar locally. To embed the published image in another
+# project, start from examples/compose.yaml.
+
+name: aws-secrets-sidecar
+
+services:
+  secrets:
+    build:
+      context: .
+    image: aws-secrets-sidecar:2.40.1
+    pull_policy: build
+    user: "0:0"
+    restart: on-failure
+    environment:
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_SECRET_ID: ${AWS_SECRET_ID:-}
+      SECRETS_DIR: /run/secrets
+      SECRETS_ENV_FILE: /run/secrets/app.env
+      SECRETS_FILE_UID: ${SECRETS_FILE_UID:-1000}
+      SECRETS_FILE_GID: ${SECRETS_FILE_GID:-1000}
+    volumes:
+      - app-secrets:/run/secrets
+
+volumes:
+  app-secrets:

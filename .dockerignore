@@ -1,0 +1,42 @@
+# Version control
+.git/
+.gitignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation and examples (not part of the image)
+*.md
+LICENSE
+examples/
+scripts/
+tests/
+
+# Docker files
+Dockerfile*
+compose.yaml
+compose*.yaml
+docker-compose*.yml
+docker-compose*.yaml
+.dockerignore
+
+# Environment and secrets
+**/.npmrc
+.env
+.env.*
+*.pem
+*.key
+*.p12
+
+# OS files
+.DS_Store
+Thumbs.db
